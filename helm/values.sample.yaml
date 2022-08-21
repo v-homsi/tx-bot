@@ -1,0 +1,38 @@
+# Default values for helm.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+nameOverride: ''
+fullnameOverride: ''
+namespace: default
+
+deployment:
+  name: evmos-testnet-tx-bot
+  type: RollingUpdate
+  image: vhomsi/tx-bot:latest
+  port: 8080
+  resources:
+    limits:
+      cpu: '1'
+      memory: '2Gi'
+    requests:
+      cpu: '1'
+      memory: '2Gi'
+
+service:
+  type: ClusterIP
+  port: 80
+
+env:
+  enable: false
+
+secret_env:
+  enable: true
+  value:
+    ORCH_PRIV_KEY: 0xYourPrivateKey
+    RPC_URL: http://172.17.0.1:8545
+
+healthcheck:
+  enable: false

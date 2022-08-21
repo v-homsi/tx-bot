@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "helm.fullname" . }}
+  labels:
+    {{- include "helm.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "helm.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 25%
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "helm.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Values.deployment.name }}
+          image: {{ .Values.deployment.image }}
+          imagePullPolicy: "Always"
+          resources:
+            {{- if .Values.deployment.resources }}
+            {{- toYaml .Values.deployment.resources | nindent 12 }}
+            {{- else }}
+            requests:
+              memory: "512Mi"
+            {{- end }}
+          env:
+            {{- if .Values.env }}
+            {{- if .Values.env.enable }}
+            {{- range $key, $value := .Values.env.value }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.secret_env }}
+            {{- if eq .Values.secret_env.enable true }}
+            {{- range $key, $value := .Values.secret_env.value }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.deployment.name }}-secret
+                  key: {{ $key }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+          ports:
+            - name: http-liveness
+              containerPort: {{ .Values.deployment.port }}
+          {{- if eq .Values.healthcheck.enable true }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthcheck.path }}
+              port: {{ .Values.healthcheck.port }}
+            initialDelaySeconds: {{ default 60 .Values.healthcheck.livenessProbeinitialDelaySeconds }}
+            periodSeconds: {{ default 20 .Values.healthcheck.livenessProbeperiodSeconds }}
+            timeoutSeconds: {{ default 1 .Values.healthcheck.livenessProbetimeoutSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthcheck.path }}
+              port: {{ .Values.healthcheck.port }}
+            initialDelaySeconds: {{ default 60 .Values.healthcheck.readinessProbeinitialDelaySeconds }}
+            periodSeconds: {{ default 20 .Values.healthcheck.readinessProbeperiodSeconds }}
+            timeoutSeconds: {{ default 1 .Values.healthcheck.readinessProbetimeoutSeconds }}
+            successThreshold: 2
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

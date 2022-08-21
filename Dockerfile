@@ -17,7 +17,8 @@ FROM node:16-alpine
 WORKDIR /app/
 ENV NODE_ENV=production
 
-COPY --from=builder /app/ ./
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
 COPY contracts contracts
 
 ENTRYPOINT ["node", "./dist/index.js"]
