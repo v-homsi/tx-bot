@@ -20,7 +20,6 @@ export async function runServer(params: ServerParams) {
     },
     promClient: {
       collectDefaultMetrics: {
-        prefix: 'tx_bot_'
       }
     }
   });
