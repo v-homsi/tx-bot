@@ -27,7 +27,7 @@ export class Orchestrator {
   private readonly params: OrchestratorParams;
   private workers: IWorker[] = [];
   private provider: providers.Provider;
-  private readonly signer: Signer;
+  private readonly signer: NonceManager;
   private checkBalanceInterval?: NodeJS.Timer;
   private readonly contracts: Contracts = {};
   private isInitiliazing = true;
@@ -57,6 +57,40 @@ export class Orchestrator {
       new Wallet(params.orchestratorAccountPrivKey, this.provider)
     );
     this.logger = params.logger;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async onFailedTx(error: any) {
+    try {
+      let errorString = error.code;
+
+      if (error.code == 'INSUFFICIENT_FUNDS') {
+        this.logger.warn(`insufficient funds. need refunding`);
+      } else if (error.code == 'SERVER_ERROR') {
+        try {
+          errorString = JSON.parse(error.body)['error']['message'];
+          if (errorString.includes('nonce')) {
+            errorString = 'INVALID_NONCE';
+          }
+        } catch (e) {
+          errorString = error.code;
+        }
+      }
+
+      this.logger.error('new failed tx', {
+        error: errorString
+      });
+      this.failedTxCounter.inc({
+        worker: 'orchestrator',
+        reason: errorString
+      });
+      // reset nonce in case it's a nonce issue
+      this.signer.setTransactionCount(await this.signer.getTransactionCount());
+    } catch (err) {
+      this.logger.error('error processing failed tx. Code error!', {
+        error: error
+      });
+    }
   }
 
   async initialize() {
@@ -153,6 +187,8 @@ export class Orchestrator {
       );
       return true;
     } catch (e) {
+      this.onFailedTx(e);
+      this.logger.error('error funding address ', address);
       return false;
     }
   }
@@ -171,7 +207,7 @@ export class Orchestrator {
 
     try {
       const contract = await factory.deploy();
-      await contract.deployed();
+      await contract.deployTransaction.wait();
       this.logger.info('gas consumer contract deployed', {
         address: contract.address
       });
